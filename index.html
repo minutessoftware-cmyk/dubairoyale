@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DUBAI ROYALE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#0B1B2E;
+    --night2:#0F2440;
+    --gold:#D4A94C;
+    --gold-bright:#F0C868;
+    --teal:#1F8A82;
+    --clay:#C1622D;
+    --red:#E4483C;
+    --cream:#F2E8D5;
+  }
+  *{box-sizing:border-box; -webkit-user-select:none; user-select:none;}
+  html,body{margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:var(--night); font-family:'Rajdhani',sans-serif; color:var(--cream);}
+  #gameCanvas{display:block; width:100%; height:100%;}
+
+  /* --- lattice signature pattern --- */
+  .lattice-border{
+    position:relative;
+    border:1px solid rgba(212,169,76,0.45);
+    background:
+      repeating-linear-gradient(45deg, rgba(212,169,76,0.07) 0 2px, transparent 2px 14px),
+      repeating-linear-gradient(-45deg, rgba(212,169,76,0.07) 0 2px, transparent 2px 14px),
+      rgba(11,27,46,0.72);
+    backdrop-filter: blur(4px);
+  }
+  .lattice-border::before{
+    content:''; position:absolute; inset:3px; border:1px solid rgba(212,169,76,0.2); pointer-events:none;
+  }
+
+  /* ---------------- HUD ---------------- */
+  #hud{position:fixed; inset:0; pointer-events:none; z-index:10; display:none;}
+  #hud.active{display:block;}
+
+  #statPanel{
+    position:absolute; left:20px; bottom:20px; width:300px; padding:12px 16px; border-radius:6px;
+  }
+  .barRow{display:flex; align-items:center; gap:8px; margin:6px 0;}
+  .barLabel{width:56px; font-size:13px; letter-spacing:1px; font-weight:700; opacity:0.85;}
+  .barTrack{flex:1; height:14px; background:rgba(0,0,0,0.45); border:1px solid rgba(242,232,213,0.25); border-radius:3px; overflow:hidden;}
+  .barFill{height:100%; transition:width 0.15s ease-out;}
+  #healthFill{background:linear-gradient(90deg,#8f2e26,var(--red));}
+  #shieldFill{background:linear-gradient(90deg,#0f5a54,var(--teal));}
+  #wallFill{background:linear-gradient(90deg,#8a6a25,var(--gold));}
+
+  #weaponRow{display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; font-family:'Orbitron',sans-serif;}
+  #weaponName{font-size:15px; color:var(--gold-bright); font-weight:700;}
+  #ammoCount{font-size:20px; font-weight:900;}
+
+  #topBar{position:absolute; top:16px; left:50%; transform:translateX(-50%); display:flex; gap:18px; align-items:center; padding:8px 22px; border-radius:8px; font-family:'Orbitron',sans-serif;}
+  #stormTimer{font-size:20px; font-weight:900; color:var(--gold-bright);}
+  #playersLeft{font-size:15px; font-weight:700;}
+  #rankBadgeMini{font-size:13px; color:var(--teal); font-weight:700;}
+
+  #crosshair{position:absolute; top:50%; left:50%; width:22px; height:22px; transform:translate(-50%,-50%); pointer-events:none;}
+  #crosshair::before,#crosshair::after{content:''; position:absolute; background:var(--cream); opacity:0.85;}
+  #crosshair::before{left:50%; top:0; width:2px; height:100%; transform:translateX(-1px);}
+  #crosshair::after{top:50%; left:0; height:2px; width:100%; transform:translateY(-1px);}
+  #crosshair.hit::before,#crosshair.hit::after{background:var(--red);}
+
+  #interactPrompt{position:absolute; bottom:130px; left:50%; transform:translateX(-50%); padding:8px 16px; border-radius:6px; font-size:16px; font-weight:600; display:none;}
+  #phasePrompt{position:absolute; bottom:170px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:6px; font-size:17px; font-weight:700; display:none; font-family:'Orbitron',sans-serif; color:var(--gold-bright); background:rgba(11,27,46,0.75); border:1px solid rgba(212,169,76,0.5);}
+
+  #itemBanner{position:absolute; top:120px; left:50%; transform:translateX(-50%) translateY(-10px); padding:10px 22px; border-radius:6px;
+    font-family:'Orbitron',sans-serif; font-weight:700; font-size:16px; letter-spacing:1px; color:var(--gold-bright);
+    background:rgba(11,27,46,0.85); border:1px solid rgba(212,169,76,0.6); opacity:0; pointer-events:none;}
+  #itemBanner.show{animation:bannerPop 2.2s ease-out;}
+  @keyframes bannerPop{
+    0%{opacity:0; transform:translateX(-50%) translateY(-10px);}
+    12%{opacity:1; transform:translateX(-50%) translateY(0);}
+    80%{opacity:1; transform:translateX(-50%) translateY(0);}
+    100%{opacity:0; transform:translateX(-50%) translateY(-6px);}
+  }
+
+  #killfeed{position:absolute; top:80px; right:20px; width:280px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+  .killItem{padding:6px 12px; border-radius:4px; font-size:14px; font-weight:600; background:rgba(11,27,46,0.75); border-left:3px solid var(--clay); animation:fadein 0.25s ease-out;}
+  @keyframes fadein{from{opacity:0; transform:translateX(20px);} to{opacity:1; transform:translateX(0);}}
+
+  #minimapWrap{position:absolute; top:16px; right:20px; width:170px; height:170px; border-radius:8px; overflow:hidden;}
+  #minimap{width:100%; height:100%; display:block;}
+
+  #buildHint{position:absolute; bottom:20px; right:20px; width:230px; padding:10px 14px; border-radius:6px; font-size:13px; line-height:1.7;}
+  #buildHint b{color:var(--gold-bright);}
+
+  /* ---------------- Screens ---------------- */
+  .screen{position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20;
+    background:
+      radial-gradient(ellipse at 50% 20%, rgba(196,140,50,0.18), transparent 60%),
+      linear-gradient(180deg, var(--night) 0%, #071019 100%);
+  }
+  .hidden{display:none !important;}
+
+  .title{font-family:'Orbitron',sans-serif; font-weight:900; font-size:clamp(38px,7vw,72px); letter-spacing:4px; color:var(--gold-bright);
+    text-shadow:0 0 24px rgba(240,200,104,0.35); margin:0;}
+  .subtitle{font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:6px; color:var(--teal); font-size:15px; margin-top:6px; text-transform:uppercase;}
+
+  .rankCard{margin-top:28px; padding:16px 26px; display:flex; align-items:center; gap:16px; border-radius:8px; min-width:340px;}
+  .rankIcon{width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:900; font-family:'Orbitron',sans-serif; border:2px solid var(--gold);}
+  .rankInfo{flex:1;}
+  .rankName{font-family:'Orbitron',sans-serif; font-weight:700; font-size:17px; color:var(--gold-bright);}
+  .rankSub{font-size:13px; opacity:0.75; margin-top:2px;}
+  .rankTrack{margin-top:6px; height:8px; border-radius:4px; background:rgba(0,0,0,0.4); overflow:hidden;}
+  .rankFill{height:100%; background:linear-gradient(90deg,var(--clay),var(--gold-bright));}
+
+  #dropBtn, .menuBtn{
+    margin-top:34px; padding:16px 52px; font-family:'Orbitron',sans-serif; font-weight:700; font-size:18px; letter-spacing:2px;
+    color:var(--night); background:linear-gradient(180deg,var(--gold-bright),var(--gold)); border:none; border-radius:6px; cursor:pointer;
+    box-shadow:0 6px 0 #8a6a25, 0 8px 18px rgba(0,0,0,0.4);
+  }
+  #dropBtn:active, .menuBtn:active{transform:translateY(4px); box-shadow:0 2px 0 #8a6a25;}
+
+  .controlsBox{margin-top:26px; padding:16px 24px; border-radius:8px; font-size:13.5px; line-height:1.9; max-width:520px; text-align:left;}
+  .controlsBox b{color:var(--gold-bright);}
+
+  #endTitle{font-family:'Orbitron',sans-serif; font-weight:900; font-size:44px;}
+  #endTitle.win{color:var(--gold-bright); text-shadow:0 0 30px rgba(240,200,104,0.5);}
+  #endTitle.lose{color:var(--red);}
+  .statsGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px 30px; margin-top:22px; font-size:15px;}
+  .statsGrid span{opacity:0.7; margin-right:8px;}
+  .statsGrid b{color:var(--cream); font-size:18px;}
+  #rankChange{margin-top:18px; font-size:14px; color:var(--teal); font-weight:700;}
+
+  #loading{position:absolute; bottom:24px; font-size:12px; letter-spacing:2px; opacity:0.6; text-transform:uppercase;}
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- ============ START SCREEN ============ -->
+<div id="startScreen" class="screen">
+  <h1 class="title">DUBAI ROYALE</h1>
+  <div class="subtitle">Last One Standing In The Emirate</div>
+
+  <div class="rankCard lattice-border">
+    <div class="rankIcon" id="rankIcon">--</div>
+    <div class="rankInfo">
+      <div class="rankName" id="rankNameText">Loading rank…</div>
+      <div class="rankSub" id="rankPointsText"></div>
+      <div class="rankTrack"><div class="rankFill" id="rankFillBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <button id="dropBtn">DROP IN</button>
+
+  <div class="controlsBox lattice-border">
+    <div><b>WASD</b> move &nbsp; <b>SHIFT</b> sprint &nbsp; <b>SPACE</b> jump / eject bus / open chute</div>
+    <div><b>MOUSE</b> look &nbsp; <b>LEFT CLICK</b> shoot &nbsp; <b>RIGHT CLICK</b> aim down sights</div>
+    <div><b>1 / 2 / 3</b> switch weapon &nbsp; <b>R</b> reload &nbsp; <b>E</b> loot &nbsp; <b>Q</b> place sand wall</div>
+    <div style="margin-top:6px;">You drop in from a flying bus — jump, freefall, then pull your chute. Higher rank = tougher, smarter bots. Good luck ✌️</div>
+  </div>
+
+  <div id="loading">Loading Dubai map…</div>
+</div>
+
+<!-- ============ END SCREEN ============ -->
+<div id="endScreen" class="screen hidden">
+  <div id="endTitle"></div>
+  <div id="endSub" class="subtitle"></div>
+  <div class="statsGrid lattice-border" style="padding:20px 30px;">
+    <div><span>Placement</span><b id="statPlacement">-</b></div>
+    <div><span>Eliminations</span><b id="statKills">-</b></div>
+    <div><span>Damage Dealt</span><b id="statDamage">-</b></div>
+    <div><span>Time Survived</span><b id="statTime">-</b></div>
+  </div>
+  <div id="rankChange"></div>
+  <button id="playAgainBtn" class="menuBtn">PLAY AGAIN</button>
+</div>
+
+<!-- ============ IN-GAME HUD ============ -->
+<div id="hud">
+  <div id="topBar" class="lattice-border">
+    <div id="stormTimer">--</div>
+    <div id="playersLeft">-- ALIVE</div>
+    <div id="rankBadgeMini">--</div>
+  </div>
+
+  <div id="minimapWrap" class="lattice-border">
+    <canvas id="minimap" width="170" height="170"></canvas>
+  </div>
+
+  <div id="killfeed"></div>
+
+  <div id="crosshair"></div>
+  <div id="interactPrompt" class="lattice-border"></div>
+  <div id="phasePrompt"></div>
+  <div id="itemBanner"></div>
+
+  <div id="statPanel" class="lattice-border">
+    <div class="barRow"><div class="barLabel">HEALTH</div><div class="barTrack"><div class="barFill" id="healthFill" style="width:100%"></div></div></div>
+    <div class="barRow"><div class="barLabel">SHIELD</div><div class="barTrack"><div class="barFill" id="shieldFill" style="width:0%"></div></div></div>
+    <div class="barRow"><div class="barLabel">WALLS</div><div class="barTrack"><div class="barFill" id="wallFill" style="width:100%"></div></div></div>
+    <div id="weaponRow"><div id="weaponName">Bare Hands</div><div id="ammoCount">-</div></div>
+  </div>
+
+  <div id="buildHint" class="lattice-border">
+    <b>Laban Jug</b> full heal over time · <b>Dates Bar</b> quick heal<br>
+    <b>Desert Cloak</b> +shield · <b>Falcon Scope</b> zoom
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Post-processing. Load order matters: EffectComposer defines THREE.Pass,
+     which RenderPass/ShaderPass extend. UnrealBloomPass needs both shaders. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/shaders/FXAAShader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
